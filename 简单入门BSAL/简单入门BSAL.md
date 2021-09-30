@@ -6,7 +6,7 @@
 
 ​		对于 BLE 的理解可以从这里的[文档](https://supperthomas-wiki.readthedocs.io/en/latest/ble/index.html)开始。BLE STACK篇详细讲解了 BLE 的相关知识，甚至包括物理上电磁波如何传数据等等。这些是偏向于底层的东西了，如果单纯写应用的话，这部分不需要太深入（实际上我也一知半解）。因此，我在这里归纳总结一些对后面写应用有帮助的东西。
 
-##### 1.1 BLE 角色
+#### 1.1 BLE 角色
 
 ​		一讲到通信，就离不开设备于设备之间的关系的问题，我们写应用就需要正确认识到自己开发的设备在通信中担任什么角色。
 
@@ -23,7 +23,7 @@
 
 
 
-##### 1.2 协议栈与硬件的关系
+#### 1.2 协议栈与硬件的关系
 
 ​		以前总是听说，某某芯片跑什么什么协议栈，让我一直以为协议栈是和硬件有关系的，不同家芯片的协议栈不能跑得通。但实际上并不是这样的，协议栈是脱离硬件，软件层面的东西，最终目的都是构建出一些 BLE 的数据结构，然后调用底层芯片外设的 API 将数据发送出去。不论用什么协议栈，发送出去的数据都应遵守 BLE 的规范。
 
@@ -120,7 +120,7 @@
 
   ![2021-09-29172821](images/2021-09-29172821.jpg)
 
-  最左边列是帧序号，最右边列是数据传输方向，M 就是 Master，S 就是 Slaver，从这个方向列可以看出，两个设备在空气中有来有回。以帧作为序号，从第674帧开始逐帧分析：
+  最左边列是帧序号，最右边列是数据传输方向，M 就是 Master，S 就是 Slaver，从这个方向列可以看出，两个设备在空气中有来有回。以帧作为序号，从第674帧开始逐帧分析**（写到第四节回来说一句，请仔细观察 Handle 值，这个值非常重要，相当于一个变量的指针，同时这个值是由 S 设备初始化协议栈时决定的）**：
 
   - 674：M 向 S 问有什么重要的 Service
 
@@ -164,6 +164,8 @@
 
   - 709-713：S 定时地，不断地向 M 发送心率测量数据
 
+    <img src="images/2021-09-30145250.jpg" alt="2021-09-30145250" style="zoom:50%;" />
+
   - 714-716：M 向 S 写了一个值，这个值的目标地址是 Handle 4，也就是 HRS 的一个 CCCD，值是 0x0000，意思就是告诉设备，不要向我通知（notify）这个特性的值了，随后 S 回复，表示收到消息，后面便不再向 M 发送心率测量数据了：
 
     <img src="images/2021-09-29235339.jpg" alt="2021-09-29235339" style="zoom:50%;" />
@@ -175,7 +177,7 @@
   - 719：S 向 M 回复，身体传感器这个特性的值是0x01，即代表传感器位置在胸口：
 
     <img src="images/2021-09-29235933.jpg" alt="2021-09-29235933" style="zoom:50%;" />
-
+  
   - 后面关于 DIS 的包没有抓，但是原理跟 HRS 的一样，限于篇幅就不展开说了。
 
 ​		抓包分析下来后，我们发现，代码上写的东西，在数据包中都能一一找到，虚的东西变成实的，云开雾散，看到了数据的真面目。因此，在写一个新的服务，或者移植一个旧的服务到 BSAL 时，抓包分析这个手段就显得尤其重要了。
@@ -184,7 +186,7 @@
 
 ###  四、以 HRS 为例分析如何实现一个 Service
 
-##### 4.1 HRS 是什么
+#### 4.1 HRS 是什么
 
 ​		全称是 Heart Rate Service，心率服务，是一个关于心率测量数据、心率传感器数据以何种数据格式进行传递的一个规范。首先给出 [SPEC](https://www.bluetooth.com/specifications/specs/heart-rate-service-1-0/)，[翻译版本](https://supperthomas-wiki.readthedocs.io/en/latest/ble_profile/03_heart_rate_profile/heart_tate_profile.html)，这是由蓝牙技术联盟制定的关于心率服务的规范。规范中有几个重点：
 
@@ -202,7 +204,7 @@
 
 
 
-##### 4.2  HRS 的 Porfile 在 Softdevice，nimble，bsal 中是如何实现的
+#### 4.2  HRS 的 Porfile 在 Softdevice，nimble，bsal 中是如何实现的
 
 ​		三个 sample 中都给 HRS 配置了心率测量、心率测量客户端特性配置描述符和身体传感器位置这三个特性，因此在他们的 Profile 中都分为三步走。
 
@@ -315,10 +317,12 @@
                 .access_cb = gatt_svr_chr_access_heart_rate,
                 .flags = BLE_GATT_CHR_F_READ,
             }, 
+    
+  ble_gatts_add_svcs(gatt_svr_svcs);
     ```
 
   - 在 bsal 中：
-
+  
     ```c
     {
                         /*** Body Sensor Location characteristic */
@@ -328,6 +332,8 @@
                         .permission = BSAL_GATT_PERM_READ_NONE,
                         .value_length = 1,
                     },
+    
+    bsal_stack_le_srv_reg_func(stack_ptr, &ble_svc_hrs_defs, (P_SRV_GENERAL_CB *)profile_callback);
     ```
 
 ​		简单对比三份代码，可以看出来，配置方法都是大同小异，因为大家都是按照 SPEC 去执行，规范中有规定的，在代码里就能找到。
@@ -336,13 +342,203 @@
 
 
 
-##### 4.3 除了构建出 Profile，还需要实现哪些功能
+#### 4.3 除了构建出 Profile，还需要实现哪些功能
 
-​		在第三节中，两台设备刚建立连接时（674-702帧），M 与 S 之间的数据包有来有回，一个问一个答。实际上这个过程是不需要用户参与的，这是由协议栈实现的。从706帧开始，之后 M 向 S 的读写请求，就需要用户介入处理了。
+##### 4.3.1 实现 Profile 中断函数
+
+​		在第三节中，两台设备刚建立连接时（674-702帧），M 与 S 之间的数据包有来有回，一个问一个答。实际上这个过程是不需要用户参与的，全程由协议栈一手操办。
+
+​		从706帧开始，之后 M 向 S 的读写请求，就需要用户介入处理了。第706帧中，M 向 S 发送写请求，请求修改一个 CCCD 值。S 收到数据之后，在应用上需要做出对应的修改。第717帧中，M 向 S 发送一个读请求，请求读取身体传感器位置这一特性的值。S 收到请求后，向 M 发送了对应数据。
+
+​		以 BSAL 为例，以上 M 对 S 的请求，都会以中断的形式向上传给应用层。用户需要在中断中对 BSAL 传上来的数据进行判断和处理，这一部分需要我们来实现。
+
+​		以下列出的四种中断类型就是我们要进行处理的：
+
+```c
+typedef enum
+{
+    BSAL_CALLBACK_TYPE_READ_CHAR_VALUE = 1,              /**< client read event */
+    BSAL_CALLBACK_TYPE_WRITE_CHAR_VALUE = 2,             /**< client write event */
+    BSAL_CALLBACK_TYPE_INDIFICATION_NOTIFICATION = 3,    /**< CCCD update event */
+    BSAL_CALLBACK_TYPE_HANDLE_TABLE = 4,                 /**< handle event */
+} T_BSAL_SRV_CB_TYPE;
+```
+
+​		HRS 中，M 向 S 修改 CCCD 数据时，便会触发 BSAL_CALLBACK_TYPE_INDIFICATION_NOTIFICATION 这一事件的中断（注意这不是写中断）；M 向 S 读取身体传感器位置信息时，便会触发 BSAL_CALLBACK_TYPE_READ_CHAR_VALUE 中断。其他两个中断类型没有用到，因此我们只需要解决这两个事件即可：
+
+```c
+/* Sensor location, set to "Chest" */
+static uint8_t body_sens_loc = BODY_SENSOR_LOCATION_CHEST;
+
+static void hrs_profile_callback(void *p)
+{
+    bsal_callbak_data_t *p_param = (bsal_callbak_data_t *)p;
+    bool is_app_cb = false;
+
+    if (p_param->msg_type == BSAL_CALLBACK_TYPE_READ_CHAR_VALUE)
+    {
+        if (GATT_SVC_BODY_SENSOR_LOCATION_READ_INDEX == p_param->off_handle)
+        {
+            is_app_cb = true;
+            bsal_srv_write_data(p_param->stack_ptr, p_param->start_handle, p_param->off_handle, sizeof(uint8_t), &body_sens_loc);
+        }
+    }
+    else if (p_param->msg_type == BSAL_CALLBACK_TYPE_INDIFICATION_NOTIFICATION)
+    {
+        if (GATT_SVC_HRS_MEASUREMENT_CHAR_CCCD_INDEX == p_param->off_handle)
+        {
+            if (p_param->length == 2)
+            {
+                is_app_cb = true;
+            }
+        }
+    }
+    if (is_app_cb && (pfn_bas_cb != NULL))
+    {
+        pfn_bas_cb(p_param);
+    }
+}
+
+```
+
+​		当中断事件是：
+
+- BSAL_CALLBACK_TYPE_READ_CHAR_VALUE时：因为一个 Service 可能会有不止一个特性能产生读中断事件，所以，惯例先判断读中断事件是由 HRS 的哪个特性传上来的。判断是身体位置传感器特性传上来的之后，便发送这个特性的值给 M。
+- BSAL_CALLBACK_TYPE_INDIFICATION_NOTIFICATION时，同理先判断一下是不是心率测量客户端特性配置描述符传上来的，如果是再判断数据长度是否正确，如果正确则打开 app 回调函数，这个数据需要让 app 去处理。
+
+
+
+##### 4.3.2 确定 handle 值以及实现 notify 函数
+
+​		因为 HRS 具有向主设备 notify 数据的能力，所以我们要实现这一条函数，给 app 调用。在4.1节中 HRS 的描述便可知，要 notify 的数据是心率测量特性的数据。同时经过第三节的抓包分析，我们知道，心率测量特性的 Handle 值是3，发送心率测量特性数据等同于发送 Handle 3的数据。
+
+​		问题来了，如果不抓包，我们怎么知道心率测量特性的 Handle 值是3呢？首先，心率测量特性是 HRS 的一个特性，而 HRS 是被注册到协议栈里面的，协议栈里面可能同时还有其他 Service，因此我们首先需要找到 HRS 的 Start Handle 值：
+
+```c
+bsal_uuid_any_t uuid_srv;
+uuid_srv.u_type = 16;
+uuid_srv.u16.value = GATT_UUID_HEART_RATE;
+uint16_t start_handle = bsal_srv_get_start_handle(stack_ptr, uuid_srv);
+```
+
+​		找到 HRS 的 Start Handle 值，我们就要找心率测量特性的 Handle 值了。在代码4.2节，bsal 的代码中我们其实可以粗略看出来：设 Service 的 Handle 为1，向下看，心率测量特性的 handle 则为2，心率测量特性的值的 Handle 即为3。
+
+​		这样就可以得出来，这个值的 Handle 值相对 Service 的 Handle 值偏移量为（3 - 1 = 2）。
+
+​		综上，我们首先得到了 HRS 的 Start Handle，然后又得到了心率测量特性的值相对于 HRS 的 Start Handle 的偏移量，也就能的出来心率测量特性的值在协议栈中的位置，于是可以召唤 bsal 的 notify 函数，发送数据了：
+
+```c
+#define GATT_SVC_HRS_MEASUREMENT_CHAR_INDEX		2
+
+bsal_srv_send_notify_data(stack_ptr, conn_id, start_handle, GATT_SVC_HRS_MEASUREMENT_CHAR_INDEX, sizeof(hr_measurement), hr_measurement);
+```
+
+​		以上这个过程，能清晰地解释如何去找 Handle 值。理解之后，其实还有一种更快捷的方法推荐大家使用，就是先放着这条函数不管，直接抓包。然后对比其中的 Handle 值就可以了。（在此，我觉得 bsal 层应像获取 Service 的 Start Handle 值一样，提供一条函数计算各种 Handle 才是比较好的解决方案）
+
+
 
 ### 五、在 pca10056 开发板中跑起来 BSAL 层
 
-### 六、BSAL 的使用流程（相当于api介绍）
+在 [rt-thread 的 bsp 中](https://github.com/RT-Thread/rt-thread/tree/master/bsp/nrf5x/nrf52840)打开 env，进入 menuconfig，选择 nimble 协议栈：
 
-### 七、实操移植 Softdevice 的 blinky 例程到 BSAL
+<img src="images/2021-09-30163616.jpg" alt="2021-09-30163616" style="zoom:50%;" />
+
+然后选择 bsal 包：
+
+<img src="images/2021-09-30163754.jpg" alt="2021-09-30163754" style="zoom:50%;" />
+
+进入 bsal 包配置，随便选择一个 sample（我这里选了 uart sample），协议栈选择 nimble，版本选择 latest：
+
+<img src="images/2021-09-30163935.jpg" alt="2021-09-30163935" style="zoom:50%;" />
+
+保存并退出 menuconfig，执行 pkgs --update 命令，将 bsal，nimble 等各种包下载下来。随后执行 scons --target=mdk5，生成 MDK5 工程。
+
+打开 MDK5 工程后，不要急着编译，在工程配置里面打开 GNU 项，再进行编译，否则编译不通过：
+
+<img src="images/screen2021-08-19_100407.jpg" alt="screen2021-08-19_100407" style="zoom:50%;" />
+
+编译通过后，连接 pca10056 开发板，并下载程序到板上，连接 MSH 后输入命令 bsal_nus_app 并按回车，BSAL 程序便跑起来了：
+
+
+
+此时，手机打开 nRF Connect，便能搜索到 “ble_rtt_uart” 这个设备：
+
+
+
+
+
+### 六、应用层中启动 BSAL 的流程
+
+​		在应用层中，bsal 的使用有点类似系统中的一个设备。
+
+1. 首先需要按协议栈名去查找一个协议栈，类似于按设备名查找设备，并返回一个设备句柄：
+
+```c
+void *bsal_find_stack_ptr(char *stack_name)
+```
+
+2. 查找到协议栈之后，要对协议栈初始化：
+
+```c
+int bsal_stack_init(void *stack_ptr, void *callback)
+```
+
+3. 初始化好协议栈之后，要设置一个广播名字，就是在广播时，要显示一个什么名字：
+
+```c
+int bsal_set_device_name(void *stack_ptr, uint8_t length, uint8_t *name)
+```
+
+4. 然后，需要绑定类型（这一条函数我还没理解，照着做就好了）：
+
+```c
+uint16_t bsal_set_device_le_bond_type(void *stack_ptr, bool is_bond, uint8_t input, uint8_t output, uint8_t bond_type, bool oob_enable)
+```
+
+		5. 通知协议栈，要开始注册 Profile 进去：
+
+```c
+void bsal_stack_le_srv_begin(void *stack_ptr, uint8_t num, void *p_fun_cb)
+```
+
+	6. 执行 Profile 的初始化函数，也就是4.2节中的函数，比如：
+
+```c
+void bsal_le_hrs_svr_init(void *stack_ptr, void *app_callback)
+```
+
+	7. 通知协议栈，Profile 已经注册完了：
+
+```c
+void bsal_stack_le_srv_end(void *stack_ptr)
+```
+
+	8. 启动协议栈：
+
+```c
+void bsal_stack_startup(void *stack_ptr)
+```
+
+​		凡是要启动 bsal，都需要这样的流程，照着写就对了，甚至是可以从其他 bsal sample 上 复制粘贴过来用（我一直都这样哈哈）。最后启动协议栈如果顺利的话，那么 bsal 就是顺利跑起来了，你的 Service 也成功注册到协议栈里了，bsal 层上的工作基本完成，接下来就看应用层了。
+
+
+
+### 七、各种可参考的 BSAL sample
+
+首先是 Profile，这个[Github 链接](https://github.com/WaterFishJ/bsal/tree/main/profiles/service)是我的分支，里面存放有部分我写的 Profile：
+
+- bsal_dis：设备信息服务
+- bsal_hrs：心率测量服务
+- bsal_lbs：Nordic 的 LED Button 服务
+- bsal_uart：Nordic 的 Uart 服务
+
+然后是 sample， 这个[Github链接](https://github.com/WaterFishJ/bsal/tree/main/samples)是我的分支，里面存放有我写的部分 Sample：
+
+- ble_hrs_app.c：心率测量的 sample
+- ble_lbs_app.c：Nordic 的 Blinky sample，手机安装 nRF Blinky 程序，就能对板子上的 LED 灯进行控制，也能读取板载按钮的状态
+- ble_nus_app.c：Nordic 的 Uart sample
+
+
+
+
 
