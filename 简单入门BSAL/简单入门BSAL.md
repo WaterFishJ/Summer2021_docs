@@ -318,25 +318,24 @@
                 .flags = BLE_GATT_CHR_F_READ,
             }, 
     
+    ble_gatts_add_svcs(gatt_svr_svcs);
     ```
-  
-ble_gatts_add_svcs(gatt_svr_svcs);
-    ```
-  
-  - 在 bsal 中：
-  
-    ```c
-    {
-                        /*** Body Sensor Location characteristic */
-                        .uuid = BSAL_UUID16_DECLARE(GATT_UUID_CHAR_BODY_SENSOR_LOCATION),
-                        .properties = BSAL_ATT_P_READ,
-                        .val_handle = &hrs_hrm_handle,
-                        .permission = BSAL_GATT_PERM_READ_NONE,
-                        .value_length = 1,
-                    },
     
-    bsal_stack_le_srv_reg_func(stack_ptr, &ble_svc_hrs_defs, (P_SRV_GENERAL_CB *)profile_callback);
-    ```
+    - 在 bsal 中：
+  
+      ```c
+      {
+                          /*** Body Sensor Location characteristic */
+                          .uuid = BSAL_UUID16_DECLARE(GATT_UUID_CHAR_BODY_SENSOR_LOCATION),
+                          .properties = BSAL_ATT_P_READ,
+                          .val_handle = &hrs_hrm_handle,
+                          .permission = BSAL_GATT_PERM_READ_NONE,
+                          .value_length = 1,
+                      },
+      
+      bsal_stack_le_srv_reg_func(stack_ptr, &ble_svc_hrs_defs, (P_SRV_GENERAL_CB *)profile_callback);
+      ```
+  
 
 ​		简单对比三份代码，可以看出来，配置方法都是大同小异，因为大家都是按照 SPEC 去执行，规范中有规定的，在代码里就能找到。
 
@@ -499,25 +498,25 @@ int bsal_set_device_name(void *stack_ptr, uint8_t length, uint8_t *name)
 uint16_t bsal_set_device_le_bond_type(void *stack_ptr, bool is_bond, uint8_t input, uint8_t output, uint8_t bond_type, bool oob_enable)
 ```
 
-		5. 通知协议栈，要开始注册 Profile 进去：
+​	5. 通知协议栈，要开始注册 Profile 进去：
 
 ```c
 void bsal_stack_le_srv_begin(void *stack_ptr, uint8_t num, void *p_fun_cb)
 ```
 
-	6. 执行 Profile 的初始化函数，也就是4.2节中的函数，比如：
+​	6. 执行 Profile 的初始化函数，也就是4.2节中的函数，比如：
 
 ```c
 void bsal_le_hrs_svr_init(void *stack_ptr, void *app_callback)
 ```
 
-	7. 通知协议栈，Profile 已经注册完了：
+​	7. 通知协议栈，Profile 已经注册完了：
 
 ```c
 void bsal_stack_le_srv_end(void *stack_ptr)
 ```
 
-	8. 启动协议栈：
+​	8. 启动协议栈：
 
 ```c
 void bsal_stack_startup(void *stack_ptr)
