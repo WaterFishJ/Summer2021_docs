@@ -318,9 +318,11 @@
                 .flags = BLE_GATT_CHR_F_READ,
             }, 
     
-  ble_gatts_add_svcs(gatt_svr_svcs);
     ```
-
+  
+ble_gatts_add_svcs(gatt_svr_svcs);
+    ```
+  
   - 在 bsal 中：
   
     ```c
@@ -459,11 +461,13 @@ bsal_srv_send_notify_data(stack_ptr, conn_id, start_handle, GATT_SVC_HRS_MEASURE
 
 编译通过后，连接 pca10056 开发板，并下载程序到板上，连接 MSH 后输入命令 bsal_nus_app 并按回车，BSAL 程序便跑起来了：
 
-
+<img src="images/2021-09-30210510.jpg" alt="2021-09-30210510" style="zoom:50%;" />
 
 此时，手机打开 nRF Connect，便能搜索到 “ble_rtt_uart” 这个设备：
 
+<img src="images/b4510d03ec2d9705cb023dd12461e06.jpg" alt="b4510d03ec2d9705cb023dd12461e06" style="zoom:50%;" />
 
+<img src="images/dae8ee9d3f7deeed77a63f22a85c5db.jpg" alt="dae8ee9d3f7deeed77a63f22a85c5db" style="zoom:50%;" />
 
 
 
