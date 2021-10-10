@@ -167,7 +167,7 @@ static void hrs_profile_callback(void *p)
 #define GATT_SVC_HRS_MEASUREMENT_CHAR_CCCD_INDEX    3
 ```
 
-这几个 index 实际是指各特性在 HRS 中的偏移量，这个可以通过抓包 nimble sample 看到，比如“传感器位置”这个特性的 handle 为6，则偏移量为5（handle - 1）。
+这几个 index 实际是指各特性在 HRS 中的偏移量，这个可以通过抓包 nimble sample 看到，比如“传感器位置”这个特性的 handle 为6，则偏移量为5（handle - start handle）。
 
 还有一个传感器位置的宏定义，在bsal_srv_hrs.h 中定义：
 
