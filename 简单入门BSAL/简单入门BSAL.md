@@ -53,7 +53,7 @@
 
 <img src="images/ffcdd831e4aa5b95ccb7bc3f25bd96f.jpg" alt="ffcdd831e4aa5b95ccb7bc3f25bd96f" style="zoom:33%;" />
 
-​		在 BLE 中，有许多由蓝牙技术联盟制定的服务[规范](https://www.bluetooth.com/specifications/specs/)（SPEC），比如用于显示电池状态的 BAS，显示设备信息的 DIS，显示心率信息的 HRS等等。规范中规定了，Service 的 UUID，需要有哪些特性，特性的 UUID，读写权限等等。在写一份 Profile 的时候，要尽可能地遵守相关的 SPEC。
+​		在 BLE 中，有许多由蓝牙技术联盟制定的服务[规范](https://www.bluetooth.com/specifications/specs/)（SPEC），比如用于显示电池状态的 BAS，显示设备信息的 DIS，显示心率信息的 HRS 等等。规范中规定了，Service 的 UUID，需要有哪些特性，特性的 UUID，读写权限等等。在写一份 Profile 的时候，要尽可能地遵守相关的 SPEC。
 
 ​		一个设备当然不可能只跑一个 Service，比如一个智能蓝牙手环，很可能就会同时有 BAS，DIS 和 HRS。这就相当于，在学校里想要关注某个学院的信息，就会关注学院微信公众号，学生会微信公众号，以及一些实验室微信公众号一样。当一个服务需要其他服务协助完成一个功能，就会用到 include 功能，但这一般比较少见，一个服务只需要专注于自己的服务就好了，如果应用有其他服务的需求，就由 app 层去引入。
 
@@ -404,7 +404,7 @@ static void hrs_profile_callback(void *p)
 
 ​		当中断事件是：
 
-- BSAL_CALLBACK_TYPE_READ_CHAR_VALUE时：因为一个 Service 可能会有不止一个特性能产生读中断事件，所以，惯例先判断读中断事件是由 HRS 的哪个特性传上来的。判断是身体位置传感器特性传上来的之后，便发送这个特性的值给 M。
+- BSAL_CALLBACK_TYPE_READ_CHAR_VALUE时：因为一个 Service 可能会有不止一个特性能产生读中断事件，所以，惯例先判断读中断事件是由 HRS 的哪个特性传上来的。判断是身体传感器位置特性传上来的之后，便发送这个特性的值给 M。
 - BSAL_CALLBACK_TYPE_INDIFICATION_NOTIFICATION时，同理先判断一下是不是心率测量客户端特性配置描述符传上来的，如果是再判断数据长度是否正确，如果正确则打开 app 回调函数，这个数据需要让 app 去处理。
 
 
@@ -422,7 +422,28 @@ uuid_srv.u16.value = GATT_UUID_HEART_RATE;
 uint16_t start_handle = bsal_srv_get_start_handle(stack_ptr, uuid_srv);
 ```
 
-​		找到 HRS 的 Start Handle 值，我们就要找心率测量特性的 Handle 值了。在代码4.2节，bsal 的代码中我们其实可以粗略看出来：设 Service 的 Handle 为1，向下看，心率测量特性的 handle 则为2，心率测量特性的值的 Handle 即为3。
+​		找到 HRS 的 Start Handle 值，我们就要找心率测量特性的 Handle 值了。在 bsal 的代码中我们其实可以粗略看出来，对比一下抓包数据，可以发现：设 Service 的 Handle 为1，向下看，心率测量特性的 handle 则为2，心率测量特性的值的 Handle 即为3。
+
+```c
+    struct bsal_gatt_app_srv_def ble_svc_hrs_defs[] =
+    {
+        {
+            /*** Heart Rate Service. */
+            .type = BSAL_GATT_UUID_PRIMARY_SERVICE,
+            .uuid = BSAL_UUID16_DECLARE(GATT_UUID_HEART_RATE),//handle 1
+            .characteristics = (bsal_gatt_chr_def_t[])
+            {
+                {
+                    /*** Heart Rate Measurement characteristic */
+                    .uuid = BSAL_UUID16_DECLARE(GATT_UUID_HRS_MEASUREMENT),//handle 2
+                    .properties = BSAL_ATT_P_NOTIFY,
+                    .val_handle = &hrs_hrm_handle,
+                    .permission = BSAL_GATT_PERM_READ_NONE,
+                    .value_length = 1,
+                },
+```
+
+<img src="images/2021-09-29225208-2.jpg" alt="2021-09-29225208-2" style="zoom:50%;" />
 
 ​		这样就可以得出来，这个值的 Handle 值相对 Service 的 Handle 值偏移量为（3 - 1 = 2）。
 
@@ -454,7 +475,7 @@ bsal_srv_send_notify_data(stack_ptr, conn_id, start_handle, GATT_SVC_HRS_MEASURE
 
 保存并退出 menuconfig，执行 pkgs --update 命令，将 bsal，nimble 等各种包下载下来。随后执行 scons --target=mdk5，生成 MDK5 工程。
 
-打开 MDK5 工程后，不要急着编译，在工程配置里面打开 GNU 项，再进行编译，否则编译不通过：
+打开 MDK5 工程后，不要急着编译，在工程配置里面打开 GNU 项，再进行编译，否则编译不通过（最新版本已修复）：
 
 <img src="images/screen2021-08-19_100407.jpg" alt="screen2021-08-19_100407" style="zoom:50%;" />
 
@@ -528,14 +549,14 @@ void bsal_stack_startup(void *stack_ptr)
 
 ### 七、各种可参考的 BSAL sample
 
-首先是 Profile，这个[Github 链接](https://github.com/WaterFishJ/bsal/tree/main/profiles/service)是我的分支，里面存放有部分我写的 Profile：
+首先是 Profile，这个[Github 链接](https://github.com/RT-Thread-packages/bsal/tree/main/profiles/service)，里面存放有部分我写的 Profile：
 
 - bsal_dis：设备信息服务
 - bsal_hrs：心率测量服务
 - bsal_lbs：Nordic 的 LED Button 服务
 - bsal_uart：Nordic 的 Uart 服务
 
-然后是 sample， 这个[Github链接](https://github.com/WaterFishJ/bsal/tree/main/samples)是我的分支，里面存放有我写的部分 Sample：
+然后是 sample， 这个[Github链接](https://github.com/RT-Thread-packages/bsal/tree/main/samples)，里面存放有我写的部分 Sample：
 
 - ble_hrs_app.c：心率测量的 sample
 - ble_lbs_app.c：Nordic 的 Blinky sample，手机安装 nRF Blinky 程序，就能对板子上的 LED 灯进行控制，也能读取板载按钮的状态
